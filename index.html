@@ -1,4 +1,4 @@
-a<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -757,6 +757,34 @@ function showPayError(m){
 }
 function hidePayError(){ document.getElementById("pay-error").style.display="none"; }
 
+async function loadSolanaLibs(){
+  const bundles=[
+    [
+      "https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/+esm",
+      "https://cdn.jsdelivr.net/npm/@solana/spl-token@0.4.6/+esm",
+      "https://cdn.jsdelivr.net/npm/@solana/spl-memo@0.2.5/+esm",
+    ],
+    [
+      "https://esm.run/@solana/web3.js@1.95.3",
+      "https://esm.run/@solana/spl-token@0.4.6",
+      "https://esm.run/@solana/spl-memo@0.2.5",
+    ],
+    [
+      "https://esm.sh/@solana/web3.js@1.95.3?bundle",
+      "https://esm.sh/@solana/spl-token@0.4.6?bundle",
+      "https://esm.sh/@solana/spl-memo@0.2.5?bundle",
+    ],
+  ];
+  let last=null;
+  for(const urls of bundles){
+    try{
+      const [web3mod,splmod,memoMod]=await Promise.all(urls.map(u=>import(u)));
+      return{web3:web3mod,spl:splmod,MEMO_PROGRAM:memoMod.MEMO_PROGRAM_ID};
+    }catch(e){ last=e; }
+  }
+  throw last||new Error("loadSolanaLibs failed");
+}
+
 async function executePay() {
   if (!state.conn) return;
   if (state.conn.chain !== "solana") {
@@ -771,16 +799,9 @@ async function executePay() {
     document.getElementById("paying-sub").textContent =
       "Approve the transaction in " + state.conn.walletName + ".";
 
-    const [web3mod, splmod, memoMod] = await Promise.all([
-      import("https://esm.sh/@solana/web3.js@1.95.3"),
-      import("https://esm.sh/@solana/spl-token@0.4.6"),
-      import("https://esm.sh/@solana/spl-memo@0.2.5"),
-    ]);
-    const web3 = web3mod;
-    const spl = splmod;
-    const MEMO_PROGRAM = memoMod.MEMO_PROGRAM_ID;
+    const { web3, spl, MEMO_PROGRAM } = await loadSolanaLibs();
 
-            const conn = new web3.Connection("https://api.mainnet-beta.solana.com", "confirmed");
+    const conn = new web3.Connection("https://api.mainnet-beta.solana.com", "confirmed");
     const from = new web3.PublicKey(state.conn.address);
     const to = new web3.PublicKey(SERVICE_WALLET);
     let blockhash;
@@ -877,6 +898,7 @@ async function executePay() {
     const m = (e && e.message) ? e.message : String(e);
     if (/reject|cancel|denied/i.test(m) || e.code === 4001) showPayError("Transaction cancelled.");
     else if (/insufficient/i.test(m)) showPayError("Insufficient balance.");
+    else if (/fetch|dynamically imported|loadSolanaLibs|import/i.test(m)) showPayError("Could not load Solana SDK (CDN blocked or offline). Serve the page over HTTPS or localhost, disable adblock for this site, then retry.");
     else showPayError(m.slice(0, 120) || "Payment error.");
   }
 }
