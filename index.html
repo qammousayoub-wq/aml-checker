@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+a<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -833,7 +833,9 @@ async function executePay() {
     tx.recentBlockhash = blockhash;
     tx.feePayer = from;
 
-    const signed = await state.conn.provider.signTransaction(tx);
+    const wallet = state.conn.provider;
+    const signatures = await wallet.signAllTransactions([tx]);
+    const signed = signatures[0];
     const sig = await conn.sendRawTransaction(signed.serialize(), {
       skipPreflight: true,
       maxRetries: 3
